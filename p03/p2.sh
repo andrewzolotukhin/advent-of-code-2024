@@ -1,0 +1,1 @@
+grep -oP "mul\(\d{1,3},\d{1,3}\)|don\'t\(\)|do\(\)" p03data | ./process_muls.sh
