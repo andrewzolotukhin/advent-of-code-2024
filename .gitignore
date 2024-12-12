@@ -1,2 +1,6 @@
 problem
 problem2
+obj
+bin
+*.hi
+*.o
