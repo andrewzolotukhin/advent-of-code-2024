@@ -53,46 +53,61 @@ long long solve(vector<string> &maze, pair<int, int> start,
     }
     QueueItem item;
     item.cost = (i == initDirection ? MOVE_COST : (TURN_COST + MOVE_COST));
-    item.direction = i;
+    item.direction = getOppositeDirection(i);
     item.x = x;
     item.y = y;
-    item.previous = {};
+    item.previous = {{start.first, start.second}};
     itemsToVisit.push_back(item);
   }
 
-  long long best = LONG_LONG_MAX;
+  long long best = 100'000;
   set<pair<int, int>> visitedPoints;
 
   while (!itemsToVisit.empty()) {
-    auto item = itemsToVisit.front();
-    itemsToVisit.erase(itemsToVisit.begin());
+    auto item = itemsToVisit.back();
+    itemsToVisit.erase(itemsToVisit.end());
 
-    auto leftDirection = (item.direction + dirs.size() - 1) % dirs.size();
-    auto rightDirection = (item.direction + 1) % dirs.size();
+    // cout << "visiting " << item.x << " " << item.y << " " << item.cost << " "
+    //      << item.previous.size() << " " << best << endl;
+
+    auto direction = getOppositeDirection(item.direction);
+    auto leftDirection = (direction + dirs.size() - 1) % dirs.size();
+    auto rightDirection = (direction + 1) % dirs.size();
 
     if (item.x == end.first && item.y == end.second) {
       if (item.cost < best) {
         best = item.cost;
         visitedPoints.clear();
+        cout << "======================\n";
       }
-      if (item.cost <= best) {
+      if (item.cost == best) {
         for (auto p : item.previous) {
           visitedPoints.insert(p);
         }
+        visitedPoints.insert(end);
       }
+      continue;
     }
 
-    if (isGoodToVisit(maze, item.x + dirs[item.direction].first,
-                      item.y + dirs[item.direction].second) &&
-        visited[item.x][item.y][getOppositeDirection(item.direction)] >
-            item.cost + MOVE_COST) {
-      visited[item.x][item.y][getOppositeDirection(item.direction)] = item.cost;
+    if (isGoodToVisit(maze, item.x + dirs[direction].first,
+                      item.y + dirs[direction].second) &&
+        visited[item.x + dirs[direction].first][item.y + dirs[direction].first]
+               [item.direction] >= item.cost + MOVE_COST - 20000 &&
+        item.cost < best &&
+        find(item.previous.begin(), item.previous.end(),
+             make_pair(item.x + dirs[direction].first,
+                       item.y + dirs[direction].second)) ==
+            item.previous.end()) {
+      visited[item.x][item.y][item.direction] = item.cost;
       QueueItem newItem;
       newItem.cost = item.cost + MOVE_COST;
-      newItem.x = item.x + dirs[item.direction].first;
-      newItem.y = item.y + dirs[item.direction].second;
+      newItem.x = item.x + dirs[direction].first;
+      newItem.y = item.y + dirs[direction].second;
       newItem.direction = item.direction;
-      newItem.previous = item.previous;
+      newItem.previous = vector<pair<int, int>>();
+      for (auto p : item.previous) {
+        newItem.previous.push_back(p);
+      }
       newItem.previous.push_back({item.x, item.y});
       // cout << "adding " << newItem.x << " " << newItem.y << " "
       //      << newItem.direction << " " << newItem.cost << endl;
@@ -101,15 +116,25 @@ long long solve(vector<string> &maze, pair<int, int> start,
 
     if (isGoodToVisit(maze, item.x + dirs[leftDirection].first,
                       item.y + dirs[leftDirection].second) &&
-        visited[item.x][item.y][getOppositeDirection(leftDirection)] >
-            item.cost + (TURN_COST + MOVE_COST)) {
-      visited[item.x][item.y][getOppositeDirection(leftDirection)] = item.cost;
+        visited[item.x + dirs[leftDirection].first]
+               [item.y + dirs[leftDirection].second]
+               [getOppositeDirection(leftDirection)] >=
+            item.cost + (TURN_COST + MOVE_COST) &&
+        item.cost < best &&
+        find(item.previous.begin(), item.previous.end(),
+             make_pair(item.x + dirs[leftDirection].first,
+                       item.y + dirs[leftDirection].second)) ==
+            item.previous.end()) {
+      visited[item.x][item.y][item.direction] = item.cost;
       QueueItem newItem;
       newItem.cost = item.cost + (TURN_COST + MOVE_COST);
       newItem.x = item.x + dirs[leftDirection].first;
       newItem.y = item.y + dirs[leftDirection].second;
-      newItem.direction = leftDirection;
-      newItem.previous = item.previous;
+      newItem.direction = getOppositeDirection(leftDirection);
+      newItem.previous = vector<pair<int, int>>();
+      for (auto p : item.previous) {
+        newItem.previous.push_back(p);
+      }
       newItem.previous.push_back({item.x, item.y});
       // cout << "adding " << newItem.x << " " << newItem.y << " "
       //      << newItem.direction << " " << newItem.cost << endl;
@@ -118,15 +143,25 @@ long long solve(vector<string> &maze, pair<int, int> start,
 
     if (isGoodToVisit(maze, item.x + dirs[rightDirection].first,
                       item.y + dirs[rightDirection].second) &&
-        visited[item.x][item.y][getOppositeDirection(rightDirection)] >
-            item.cost + (TURN_COST + MOVE_COST)) {
-      visited[item.x][item.y][getOppositeDirection(rightDirection)] = item.cost;
+        visited[item.x + dirs[rightDirection].first]
+               [item.y + dirs[rightDirection].second]
+               [getOppositeDirection(rightDirection)] >=
+            item.cost + (TURN_COST + MOVE_COST) &&
+        item.cost < best &&
+        find(item.previous.begin(), item.previous.end(),
+             make_pair(item.x + dirs[rightDirection].first,
+                       item.y + dirs[rightDirection].second)) ==
+            item.previous.end()) {
+      visited[item.x][item.y][item.direction] = item.cost;
       QueueItem newItem;
       newItem.cost = item.cost + (TURN_COST + MOVE_COST);
       newItem.x = item.x + dirs[rightDirection].first;
       newItem.y = item.y + dirs[rightDirection].second;
-      newItem.direction = rightDirection;
-      newItem.previous = item.previous;
+      newItem.direction = getOppositeDirection(rightDirection);
+      newItem.previous = vector<pair<int, int>>();
+      for (auto p : item.previous) {
+        newItem.previous.push_back(p);
+      }
       newItem.previous.push_back({item.x, item.y});
       // cout << "adding " << newItem.x << " " << newItem.y << " "
       //      << newItem.direction << " " << newItem.cost << endl;
