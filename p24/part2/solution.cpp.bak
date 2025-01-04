@@ -1,0 +1,416 @@
+#include <bits/stdc++.h>
+#include <cassert>
+#include <unordered_map>
+#include <unordered_set>
+#define CONSTANT "CONSTANT"
+#define AND "AND"
+#define OR "OR"
+#define XOR "XOR"
+
+using namespace std;
+
+struct Operation {
+  string type;
+  string operand1;
+  string operand2;
+  int value;
+  bool isEvaluated;
+};
+
+void MarkNoEvaluated(unordered_map<string, Operation> &registers, string name) {
+  auto operation = registers[name];
+  if (operation.type == CONSTANT) {
+    return;
+  }
+
+  operation.isEvaluated = false;
+  MarkNoEvaluated(registers, operation.operand1);
+  MarkNoEvaluated(registers, operation.operand2);
+
+  registers[name] = operation;
+}
+
+void getWrongRegisters(unordered_map<string, Operation> &registers,
+                       vector<pair<string, string>> &candidates,
+                       vector<string> &possiblyWrongRegisters,
+                       long long target) {}
+
+void Evaluate(unordered_map<string, Operation> &registers, string name) {
+  auto operation = registers[name];
+  if (operation.isEvaluated) {
+    return;
+  }
+
+  if (operation.type == CONSTANT) {
+    return;
+  } else {
+    auto leftRegister = registers[operation.operand1];
+    auto rightRegister = registers[operation.operand2];
+
+    if (!leftRegister.isEvaluated) {
+      Evaluate(registers, operation.operand1);
+    }
+
+    if (!rightRegister.isEvaluated) {
+      Evaluate(registers, operation.operand2);
+    }
+
+    leftRegister = registers[operation.operand1];
+    rightRegister = registers[operation.operand2];
+
+    if (leftRegister.isEvaluated && rightRegister.isEvaluated) {
+      if (operation.type == AND) {
+        operation.value = leftRegister.value & rightRegister.value;
+      }
+
+      if (operation.type == OR) {
+        operation.value = leftRegister.value | rightRegister.value;
+      }
+
+      if (operation.type == XOR) {
+        operation.value = leftRegister.value ^ rightRegister.value;
+      }
+
+    } else {
+      cout << leftRegister.isEvaluated << " " << rightRegister.isEvaluated
+           << endl;
+      assert(false);
+    }
+
+    operation.isEvaluated = true;
+    registers[name] = operation;
+  }
+}
+
+unsigned long long calculateSum(unsigned long long x, unsigned long long y,
+                                unordered_map<string, Operation> &registers,
+                                const vector<string> &zregisters,
+                                const vector<string> &xregisters,
+                                const vector<string> &yregisters) {
+  bitset<64> bx(x);
+  bitset<64> by(y);
+  for (int i = 0; i < xregisters.size(); i++) {
+    auto registerName = xregisters[xregisters.size() - 1 - i];
+    registers[registerName] = {CONSTANT, registerName, "", bx[i], true};
+  }
+
+  for (int i = 0; i < yregisters.size(); i++) {
+    auto registerName = yregisters[yregisters.size() - 1 - i];
+    registers[registerName] = {CONSTANT, registerName, "", by[i], true};
+  }
+
+  for (auto reg : registers) {
+    if (reg.second.type != CONSTANT) {
+      registers[reg.first].isEvaluated = false;
+    }
+  }
+
+  for (auto reg : registers) {
+    if (!reg.second.isEvaluated) {
+      Evaluate(registers, reg.first);
+    }
+  }
+
+  unsigned long long result = 0LL;
+  for (int i = 0; i < zregisters.size(); i++) {
+    auto registerName = zregisters[i];
+    auto operation = registers[registerName];
+    result <<= 1;
+    result |= operation.value;
+  }
+
+  return result;
+}
+
+void addAllDependentRegisters(string name,
+                              unordered_set<string> &possiblyWrongRegisters,
+                              unordered_map<string, Operation> &registers) {
+  auto operation = registers[name];
+  if (operation.type == CONSTANT) {
+    return;
+  }
+  possiblyWrongRegisters.insert(name);
+  addAllDependentRegisters(operation.operand1, possiblyWrongRegisters,
+                           registers);
+  addAllDependentRegisters(operation.operand2, possiblyWrongRegisters,
+                           registers);
+}
+
+vector<pair<string, string>> generatePairs(const vector<string> &elements) {
+  vector<pair<string, string>> pairs;
+  int n = elements.size();
+  for (int i = 0; i < n; ++i) {
+    for (int j = i + 1; j < n; ++j) {
+      pairs.emplace_back(elements[i], elements[j]);
+    }
+  }
+  return pairs;
+}
+
+vector<pair<string, string>> generateCombinations(
+    const vector<pair<string, string>> &pairs,
+    vector<pair<string, string>> &current, int index, int maxLength,
+    const std::function<bool(const vector<pair<string, string>> &)> &callback) {
+  // If the current combination length is within bounds, store it
+  if (!current.empty() && current.size() <= maxLength) {
+    if (callback(current)) {
+      return current;
+    }
+  }
+
+  // Stop recursion if we exceed bounds
+  if (current.size() == maxLength || index >= pairs.size()) {
+    return {};
+  }
+
+  for (int i = index; i < pairs.size(); ++i) {
+    // Check if the current pair overlaps with existing pairs
+    bool overlaps = false;
+    for (const auto &p : current) {
+      if (p.first == pairs[i].first || p.first == pairs[i].second ||
+          p.second == pairs[i].first || p.second == pairs[i].second) {
+        overlaps = true;
+        break;
+      }
+    }
+
+    if (!overlaps) {
+      // Add the current pair and recurse
+      current.push_back(pairs[i]);
+      auto r = generateCombinations(pairs, current, i + 1, maxLength, callback);
+      if (r.size() > 0) {
+        return r;
+      }
+      current.pop_back();
+    }
+  }
+
+  return {};
+}
+
+vector<pair<string, string>> generateAllPairCombinations(
+    vector<string> &elements,
+    const std::function<bool(const vector<pair<string, string>> &)> &callback,
+    int maxLength = 4) {
+
+  // Generate all unique pairs
+  vector<pair<string, string>> pairs = generatePairs(elements);
+
+  // Generate all combinations of pairs
+  vector<pair<string, string>> current;
+  return generateCombinations(pairs, current, 0, maxLength, callback);
+}
+
+void inEvaluateRegister(string reg,
+                        unordered_map<string, Operation> &registers) {
+
+  auto operation = registers[reg];
+  // if registers contains `reg`
+  if (operation.type == CONSTANT) {
+    return;
+  }
+  operation.isEvaluated = false;
+  registers.insert({reg, operation});
+  inEvaluateRegister(operation.operand1, registers);
+  inEvaluateRegister(operation.operand2, registers);
+}
+
+int main() {
+  unordered_map<string, Operation> registers;
+  vector<string> zregisters, xregisters, yregisters;
+
+  string line;
+  while (true) {
+    getline(cin, line);
+
+    if (line.empty()) {
+      break;
+    }
+
+    string name;
+    int value;
+
+    char t[100];
+    sscanf(line.c_str(), "%99[^:]: %d", t, &value);
+    name = t;
+    registers[name] = {CONSTANT, name, "", value, true};
+    if (name.substr(0, 1) == "z") {
+      zregisters.push_back(name);
+    } else if (name.substr(0, 1) == "x") {
+      xregisters.push_back(name);
+    } else if (name.substr(0, 1) == "y") {
+      yregisters.push_back(name);
+    }
+  }
+
+  // until EOF read dependant values
+
+  while (getline(cin, line)) {
+    int value;
+
+    char operand1s[100], operations[100], operand2s[100], results[100];
+    string operand1, operation, operand2, result;
+
+    sscanf(line.c_str(), "%99[^ ] %99[^ ] %99[^ ]  -> %99[^\n]", operand1s,
+           operations, operand2s, results);
+
+    operand1 = operand1s;
+    operation = operations;
+    operand2 = operand2s;
+    result = results;
+
+    registers[result] = {operation, operand1, operand2, 0, false};
+    if (result.substr(0, 1) == "z") {
+      zregisters.push_back(result);
+    }
+  }
+
+  for (auto reg : registers) {
+    if (!reg.second.isEvaluated) {
+      Evaluate(registers, reg.first);
+    }
+  }
+
+  unsigned long long result = 0LL;
+  unsigned long long X = 0LL, Y = 0LL;
+
+  sort(zregisters.begin(), zregisters.end(),
+       [&](string a, string b) { return a > b; });
+  sort(xregisters.begin(), xregisters.end(),
+       [&](string a, string b) { return a > b; });
+  sort(yregisters.begin(), yregisters.end(),
+       [&](string a, string b) { return a > b; });
+
+  for (auto reg : zregisters) {
+    auto operation = registers[reg];
+    result <<= 1;
+    result |= operation.value;
+  }
+
+  for (auto reg : xregisters) {
+    auto operation = registers[reg];
+    X <<= 1;
+    X |= operation.value;
+  }
+
+  for (auto reg : yregisters) {
+    auto operation = registers[reg];
+    Y <<= 1;
+    Y |= operation.value;
+  }
+
+  long long target = X + Y;
+
+  cout << X << " + " << Y << " = " << result << endl;
+  long long diff = target ^ result;
+
+  bitset<64> bdiff(diff);
+
+  cout << "Diff (binary): " << bitset<64>(diff) << endl;
+  cout << "Ress (binary): " << bitset<64>(result) << endl;
+
+  unordered_set<string> wrongZregisters, correctZregisters;
+  for (int i = 0; i < zregisters.size(); i++) {
+    if (bdiff[i]) {
+      wrongZregisters.insert(zregisters[i]);
+    } else {
+      correctZregisters.insert(zregisters[i]);
+    }
+  }
+
+  unordered_set<string> possiblyWrongRegisters, correctRegisters;
+
+  for (auto wz : wrongZregisters) {
+    addAllDependentRegisters(wz, possiblyWrongRegisters, registers);
+  }
+
+  for (auto cr : correctZregisters) {
+    addAllDependentRegisters(cr, correctRegisters, registers);
+  }
+
+  cout << possiblyWrongRegisters.size() << endl;
+  for (auto cr : correctRegisters) {
+    possiblyWrongRegisters.erase(cr);
+  }
+
+  cout << correctRegisters.size() << endl;
+  cout << possiblyWrongRegisters.size() << endl;
+
+  auto trySwap = [&](const vector<pair<string, string>> &pairs) {
+    for (int i = 0; i < pairs.size(); i++) {
+      auto pair = pairs[i];
+      cout << "(" << pair.first << "," << pair.second << "), ";
+      auto op1 = registers[pair.first];
+      auto op2 = registers[pair.second];
+
+      registers[pair.first] = op2;
+      registers[pair.second] = op1;
+    }
+
+    for (auto reg : registers) {
+      inEvaluateRegister(reg.first, registers);
+      // cout << registers[reg.first].isEvaluated << endl;
+    }
+    // try to evaluate all registers
+    for (auto reg : registers) {
+      // inEvaluateRegister(reg, registers);
+      Evaluate(registers, reg.first);
+    }
+
+    unsigned long long newResult = 0LL;
+
+    for (auto reg : zregisters) {
+      auto operation = registers[reg];
+      newResult <<= 1;
+      newResult |= operation.value;
+    }
+
+    cout << " = " << newResult << endl;
+
+    if (newResult == target) {
+      return true;
+    }
+
+    // return everything back
+    for (auto pair : pairs) {
+      auto op1 = registers[pair.first];
+      auto op2 = registers[pair.second];
+
+      registers[pair.first] = op2;
+      registers[pair.second] = op1;
+    }
+
+    return false;
+  };
+
+  vector<string> possiblyWrongRegistersVector;
+  for (auto reg : possiblyWrongRegisters) {
+    possiblyWrongRegistersVector.push_back(reg);
+  }
+
+  auto permutation =
+      generateAllPairCombinations(possiblyWrongRegistersVector, trySwap);
+
+  if (permutation.size() == 0) {
+    cout << "No solution found" << endl;
+    return 0;
+  } else {
+    for (auto pair : permutation) {
+      cout << "(" << pair.first << "," << pair.second << "), ";
+      cout << endl;
+    }
+  }
+
+  // go through all bdiff bits set to 1
+  // for (int i = 0; i <= zregisters.size(); i++) {
+  //   // if (bdiff[i]) {
+  //   auto registerName = zregisters[i];
+  //   cout << registerName << " = " << bdiff[i] << endl;
+  //   // }
+  // }
+
+  // vector<pair<string, string>> wrongRegisters;
+  // cout << "possiblyWrongRegisters:" << possiblyWrongRegisters.size() <<
+  // endl; getWrongRegisters(registers, wrongRegisters,
+  // possiblyWrongRegisters, target);
+}
